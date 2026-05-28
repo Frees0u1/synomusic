@@ -28,7 +28,11 @@ def print_menu() -> None:
 
 def menu_top_playlists(netease: NeteaseClient, navi: NavidromeClient, cfg: Config) -> None:
     with console.status("正在获取热门歌单..."):
-        playlists = netease.get_top_playlists(cfg.top_playlist_limit)
+        try:
+            playlists = netease.get_top_playlists(cfg.top_playlist_limit)
+        except Exception as e:
+            console.print(f"[red]获取热门歌单失败：{e}[/red]")
+            return
 
     table = Table(box=box.ROUNDED)
     table.add_column("#", justify="right", style="dim")
