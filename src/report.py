@@ -27,6 +27,28 @@ def _safe_filename(name: str) -> str:
     return re.sub(r'[\\/:*?"<>|]', "_", name)
 
 
+def print_fuzzy_details(fuzzy_matches: list[tuple[str, str, MatchResult]], console: Console) -> None:
+    if not fuzzy_matches:
+        return
+    table = Table(title="模糊匹配详情", box=box.SIMPLE)
+    table.add_column("歌曲", style="yellow")
+    table.add_column("艺术家", style="yellow")
+    table.add_column("得分", justify="right")
+    table.add_column("置信度")
+    for title, artist, result in fuzzy_matches:
+        conf = "[red]低[/red]" if result.low_confidence else "[green]正常[/green]"
+        table.add_row(title, artist, str(result.score), conf)
+    console.print(table)
+
+
+def print_unmatched_list(unmatched: list[tuple[str, str]], console: Console) -> None:
+    if not unmatched:
+        return
+    console.print(f"\n[red]缺失歌曲（{len(unmatched)}首）：[/red]")
+    for title, artist in unmatched:
+        console.print(f"  · {artist} - {title}")
+
+
 def print_report(summary: SyncSummary, console: Console) -> None:
     panel_lines = [
         f"歌单共 [bold]{summary.total}[/bold] 首",
@@ -40,22 +62,8 @@ def print_report(summary: SyncSummary, console: Console) -> None:
         panel_lines.append("\n[yellow]播放列表未创建（用户取消或无匹配）[/yellow]")
 
     console.print(Panel("\n".join(panel_lines), title=f"同步报告：{summary.playlist_name}", expand=False))
-
-    if summary.fuzzy_matches:
-        table = Table(title="模糊匹配详情", box=box.SIMPLE)
-        table.add_column("歌曲", style="yellow")
-        table.add_column("艺术家", style="yellow")
-        table.add_column("得分", justify="right")
-        table.add_column("置信度")
-        for title, artist, result in summary.fuzzy_matches:
-            conf = "[red]低[/red]" if result.low_confidence else "[green]正常[/green]"
-            table.add_row(title, artist, str(result.score), conf)
-        console.print(table)
-
-    if summary.unmatched:
-        console.print(f"\n[red]缺失歌曲（{len(summary.unmatched)}首）：[/red]")
-        for title, artist in summary.unmatched:
-            console.print(f"  · {artist} - {title}")
+    print_fuzzy_details(summary.fuzzy_matches, console)
+    print_unmatched_list(summary.unmatched, console)
 
 
 def save_report(summary: SyncSummary, reports_dir: str) -> str:
