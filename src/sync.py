@@ -76,11 +76,7 @@ def _run_sync_inner(
         f"缺失 [bold red]{len(unmatched_list)}[/bold red] 首"
     )
 
-    if not matched_ids:
-        console.print("[yellow]曲库中没有匹配的歌曲，取消创建播放列表。[/yellow]")
-        return
-
-    # 预览菜单循环
+    # 预览菜单循环（即使 matched_ids 为空也可查看缺失详情）
     while True:
         console.print(
             f"\n查看详情？"
@@ -105,6 +101,10 @@ def _run_sync_inner(
             print_unmatched_list(unmatched_list, console)
         else:
             break
+
+    if not matched_ids:
+        console.print("[yellow]曲库中没有匹配的歌曲，取消创建播放列表。[/yellow]")
+        return
 
     confirm = console.input(f"\n确认创建播放列表「{playlist.name}」？[y/N] ").strip().lower()
     if confirm != "y":
