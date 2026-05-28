@@ -39,12 +39,12 @@ def test_strict_match():
 
 
 def test_fuzzy_match_title():
-    library = [{"id": "1", "title": "稻香 (Live版)", "artist": "周杰伦"}]
-    matcher = Matcher(library, fuzzy_threshold=80)
+    library = [{"id": "1", "title": "稻香啊", "artist": "周杰伦"}]
+    matcher = Matcher(library, fuzzy_threshold=70)
     result = matcher.match("稻香", "周杰伦")
-    assert result.status in (MatchStatus.STRICT, MatchStatus.FUZZY)
+    assert result.status == MatchStatus.FUZZY
     assert result.track_id == "1"
-    assert result.score >= 80
+    assert result.score >= 70
 
 
 def test_no_match():

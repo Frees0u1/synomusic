@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
@@ -60,6 +60,7 @@ class Matcher:
 
         # Level 2: fuzzy
         best: Optional[MatchResult] = None
+        best_raw_score: float = 0.0
         for track in self._library:
             title_score = fuzz.ratio(title_norm, track["title_norm"])
             if title_score < self._threshold:
@@ -67,13 +68,13 @@ class Matcher:
             artist_score = fuzz.partial_ratio(artist_norm, track["artist_norm"])
             low_conf = artist_norm != track["artist_norm"] and artist_score >= 65
             if artist_norm == track["artist_norm"] or low_conf:
-                candidate = MatchResult(
-                    status=MatchStatus.FUZZY,
-                    track_id=track["id"],
-                    score=int(title_score),
-                    low_confidence=low_conf,
-                )
-                if best is None or title_score > best.score:
-                    best = candidate
+                if best is None or title_score > best_raw_score:
+                    best = MatchResult(
+                        status=MatchStatus.FUZZY,
+                        track_id=track["id"],
+                        score=int(title_score),
+                        low_confidence=low_conf,
+                    )
+                    best_raw_score = title_score
 
         return best if best is not None else MatchResult(status=MatchStatus.UNMATCHED)
