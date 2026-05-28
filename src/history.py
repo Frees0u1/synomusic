@@ -24,8 +24,11 @@ class History:
     def _load(self) -> list[dict]:
         if not os.path.exists(self._path):
             return []
-        with open(self._path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(self._path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return []
 
     def append(self, record: SyncRecord) -> None:
         os.makedirs(os.path.dirname(self._path) or ".", exist_ok=True)

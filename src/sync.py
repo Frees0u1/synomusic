@@ -16,6 +16,19 @@ def run_sync(
     cfg: Config,
     console: Console,
 ) -> None:
+    try:
+        _run_sync_inner(playlist, netease, navi, cfg, console)
+    except Exception as e:
+        console.print(f"\n[red]同步失败：{e}[/red]")
+
+
+def _run_sync_inner(
+    playlist: NeteasePlaylist,
+    netease: NeteaseClient,
+    navi: NavidromeClient,
+    cfg: Config,
+    console: Console,
+) -> None:
     history = History(cfg.history_file)
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
@@ -52,6 +65,8 @@ def run_sync(
 
         progress.update(t3, description="✅ 匹配完成")
         progress.stop_task(t3)
+
+    matched_ids = list(dict.fromkeys(matched_ids))
 
     console.print()
     total = len(netease_tracks)

@@ -96,22 +96,25 @@ class NavidromeClient:
 
     def create_playlist(self, name: str, track_ids: list[str]) -> str:
         """Create playlist and return its ID."""
-        params = {"name": name}
-        data = self._get("createPlaylist", params=params)
+        data = self._get("createPlaylist", params={"name": name})
         playlist_id = str(data["playlist"]["id"])
         if track_ids:
-            auth = self._auth_params()
-            auth["playlistId"] = playlist_id
-            song_params = [("songIdToAdd", tid) for tid in track_ids]
-            base_params = list(auth.items())
-            resp = self._session.get(
-                f"{self._base}/updatePlaylist",
-                params=base_params + song_params,
-                timeout=30,
-            )
-            resp.raise_for_status()
-            update_root = resp.json().get("subsonic-response", {})
-            if update_root.get("status") != "ok":
-                error = update_root.get("error", {})
-                raise RuntimeError(f"Subsonic updatePlaylist error {error.get('code')}: {error.get('message')}")
+            # Chunk to avoid URL length limits
+            chunk_size = 200
+            for i in range(0, len(track_ids), chunk_size):
+                chunk = track_ids[i:i + chunk_size]
+                auth = self._auth_params()
+                auth["playlistId"] = playlist_id
+                song_params = [("songIdToAdd", tid) for tid in chunk]
+                base_params = list(auth.items())
+                resp = self._session.get(
+                    f"{self._base}/updatePlaylist",
+                    params=base_params + song_params,
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                update_root = resp.json().get("subsonic-response", {})
+                if update_root.get("status") != "ok":
+                    error = update_root.get("error", {})
+                    raise RuntimeError(f"Subsonic updatePlaylist error {error.get('code')}: {error.get('message')}")
         return playlist_id
