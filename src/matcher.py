@@ -70,7 +70,7 @@ class Matcher:
                 candidate = MatchResult(
                     status=MatchStatus.FUZZY,
                     track_id=track["id"],
-                    score=title_score,
+                    score=int(title_score),
                     low_confidence=low_conf,
                 )
                 if best is None or title_score > best.score:
