@@ -75,8 +75,8 @@ def _run_sync_inner(
         console.print("[yellow]曲库中没有匹配的歌曲，取消创建播放列表。[/yellow]")
         return
 
-    confirm = console.input(f"\n确认创建播放列表「{playlist.name}」？[y/N] ").strip().lower()
-    if confirm != "y":
+    confirm = console.input(f"\n确认创建播放列表「{playlist.name}」？[Y/n] ").strip().lower()
+    if confirm == "n":
         console.print("[yellow]已取消。[/yellow]")
         return
 
