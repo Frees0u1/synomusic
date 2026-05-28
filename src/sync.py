@@ -67,6 +67,7 @@ def _run_sync_inner(
         progress.stop_task(t3)
 
     matched_ids = list(dict.fromkeys(matched_ids))
+    total = len(netease_tracks)
 
     console.print()
     print_preview(strict_matches, fuzzy_matches, unmatched_list, playlist.name, console)
