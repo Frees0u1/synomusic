@@ -5,7 +5,7 @@ from src.config import Config
 from src.netease import NeteaseClient, NeteasePlaylist
 from src.navidrome import NavidromeClient, CreatePlaylistResult
 from src.matcher import Matcher, MatchStatus
-from src.report import SyncSummary, save_report, print_preview
+from src.report import SyncSummary, save_report, print_preview, print_collisions
 from src.history import History
 
 
@@ -90,18 +90,9 @@ def _run_sync_inner(
     playlist_exists = any(p.get("name") == playlist.name for p in existing_playlists)
 
     console.print()
-    if collisions:
-        console.print(f"[yellow]⚠ {len(collisions)} 条曲库记录被多首网易云歌曲共用（已去重）：[/yellow]")
-        for info in collisions.values():
-            console.print(
-                f"\n  [bold]Navidrome:[/bold] {info['navi_artist']} - {info['navi_title']}"
-                f"\n  [dim]{info['navi_path']}[/dim]"
-            )
-            for title, artist in info["netease"]:
-                console.print(f"    · 网易云：{artist} - {title}")
-        console.print()
     print_preview(strict_matches, fuzzy_matches, unmatched_list, playlist.name, console,
-                  playlist_exists=playlist_exists, unique_track_count=len(matched_ids))
+                  playlist_exists=playlist_exists, unique_track_count=len(matched_ids),
+                  collisions=collisions)
 
     if not matched_ids:
         console.print("[yellow]曲库中没有匹配的歌曲，取消创建播放列表。[/yellow]")

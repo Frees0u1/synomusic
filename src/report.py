@@ -35,6 +35,7 @@ def print_preview(
     console: Console,
     playlist_exists: bool = False,
     unique_track_count: Optional[int] = None,
+    collisions: Optional[dict] = None,
 ) -> None:
     total = len(strict_matches) + len(fuzzy_matches) + len(unmatched)
     matched = len(strict_matches) + len(fuzzy_matches)
@@ -73,6 +74,9 @@ def print_preview(
 
     console.print(table)
 
+    if collisions:
+        print_collisions(collisions, console)
+
     stats = "\n".join([
         f"歌单共 [bold]{total}[/bold] 首{action_tag}",
         f"  ✅ 严格匹配  [green]{len(strict_matches)}[/green] 首",
@@ -80,6 +84,27 @@ def print_preview(
         f"  ❌ 未匹配    [red]{len(unmatched)}[/red] 首",
     ]) + dedup_line
     console.print(Panel(stats, title=f"[bold]{playlist_name}[/bold]", expand=False))
+
+
+def print_collisions(collisions: dict, console: Console) -> None:
+    if not collisions:
+        return
+    table = Table(
+        title=f"[yellow]⚠ {len(collisions)} 条曲库记录被多首网易云歌曲共用（已去重）[/yellow]",
+        box=box.SIMPLE,
+        show_header=True,
+    )
+    table.add_column("曲库文件", style="dim")
+    table.add_column("曲库曲目")
+    table.add_column("网易云歌曲（合并）")
+    for info in collisions.values():
+        netease_lines = "\n".join(f"{a} - {t}" for t, a in info["netease"])
+        table.add_row(
+            info["navi_path"],
+            f"{info['navi_artist']} - {info['navi_title']}",
+            netease_lines,
+        )
+    console.print(table)
 
 
 def print_fuzzy_details(fuzzy_matches: list[tuple[str, str, MatchResult]], console: Console) -> None:
