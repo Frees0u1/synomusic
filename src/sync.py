@@ -3,9 +3,9 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from src.config import Config
 from src.netease import NeteaseClient, NeteasePlaylist
-from src.navidrome import NavidromeClient
+from src.navidrome import NavidromeClient, CreatePlaylistResult
 from src.matcher import Matcher, MatchStatus
-from src.report import SyncSummary, print_report, save_report, print_preview
+from src.report import SyncSummary, save_report, print_preview
 from src.history import History
 
 
@@ -83,9 +83,19 @@ def _run_sync_inner(
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
         t4 = progress.add_task("正在创建播放列表...", total=None)
-        playlist_id = navi.create_playlist(playlist.name, matched_ids)
+        result: CreatePlaylistResult = navi.create_playlist(playlist.name, matched_ids)
         progress.update(t4, description="✅ 播放列表已创建")
         progress.stop_task(t4)
+
+    status = "[red]有失败[/red]" if result.failed_calls else "[green]全部成功[/green]"
+    console.print(
+        f"\n[bold]创建统计[/bold]\n"
+        f"  歌曲数      {result.track_count} 首\n"
+        f"  API 调用    {result.api_calls} 次（{status}）\n"
+        f"  总耗时      {result.total_ms:.0f} ms\n"
+        f"  平均延迟    {result.avg_ms:.0f} ms\n"
+        f"  最大延迟    {result.max_ms:.0f} ms"
+    )
 
     summary = SyncSummary(
         playlist_name=playlist.name,
@@ -94,13 +104,10 @@ def _run_sync_inner(
         strict_matches=strict_matches,
         fuzzy_matches=fuzzy_matches,
         unmatched=unmatched_list,
-        navidrome_playlist_id=playlist_id,
+        navidrome_playlist_id=result.playlist_id,
     )
-
-    console.print()
-    print_report(summary, console)
     report_path = save_report(summary, "./data/reports")
-    console.print(f"\n报告已保存：[dim]{report_path}[/dim]")
+    console.print(f"  报告已保存  [dim]{report_path}[/dim]")
 
     record = History.make_record(
         playlist_name=playlist.name,
@@ -109,6 +116,6 @@ def _run_sync_inner(
         matched_strict=len(strict_matches),
         matched_fuzzy=len(fuzzy_matches),
         unmatched=len(unmatched_list),
-        navidrome_playlist_id=playlist_id,
+        navidrome_playlist_id=result.playlist_id,
     )
     history.append(record)

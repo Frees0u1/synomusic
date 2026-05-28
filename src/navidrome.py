@@ -1,7 +1,8 @@
 import hashlib
 import os
+import time
 import requests
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -12,6 +13,27 @@ class NaviTrack:
     artist: str
     album: str
     path: str = ""
+
+
+@dataclass
+class CreatePlaylistResult:
+    playlist_id: str
+    track_count: int
+    api_calls: int
+    failed_calls: int
+    latencies_ms: list[float] = field(default_factory=list)
+
+    @property
+    def total_ms(self) -> float:
+        return sum(self.latencies_ms)
+
+    @property
+    def avg_ms(self) -> float:
+        return self.total_ms / len(self.latencies_ms) if self.latencies_ms else 0.0
+
+    @property
+    def max_ms(self) -> float:
+        return max(self.latencies_ms) if self.latencies_ms else 0.0
 
 
 class NavidromeClient:
@@ -96,22 +118,25 @@ class NavidromeClient:
             offset += size
         return tracks
 
-    def create_playlist(self, name: str, track_ids: list[str]) -> str:
-        """Create playlist and return its ID."""
+    def create_playlist(self, name: str, track_ids: list[str]) -> CreatePlaylistResult:
+        t0 = time.monotonic()
         data = self._get("createPlaylist", params={"name": name})
+        create_latency = (time.monotonic() - t0) * 1000
         playlist_id = str(data["playlist"]["id"])
-        if track_ids:
-            # Chunk to avoid URL length limits
-            chunk_size = 200
-            for i in range(0, len(track_ids), chunk_size):
-                chunk = track_ids[i:i + chunk_size]
-                auth = self._auth_params()
-                auth["playlistId"] = playlist_id
-                song_params = [("songIdToAdd", tid) for tid in chunk]
-                base_params = list(auth.items())
+
+        latencies: list[float] = [create_latency]
+        failed = 0
+        chunk_size = 200
+        for i in range(0, len(track_ids), chunk_size):
+            chunk = track_ids[i:i + chunk_size]
+            auth = self._auth_params()
+            auth["playlistId"] = playlist_id
+            song_params = [("songIdToAdd", tid) for tid in chunk]
+            t1 = time.monotonic()
+            try:
                 resp = self._session.get(
                     f"{self._base}/updatePlaylist",
-                    params=base_params + song_params,
+                    params=list(auth.items()) + song_params,
                     timeout=30,
                 )
                 resp.raise_for_status()
@@ -119,4 +144,16 @@ class NavidromeClient:
                 if update_root.get("status") != "ok":
                     error = update_root.get("error", {})
                     raise RuntimeError(f"Subsonic updatePlaylist error {error.get('code')}: {error.get('message')}")
-        return playlist_id
+            except Exception:
+                failed += 1
+                raise
+            finally:
+                latencies.append((time.monotonic() - t1) * 1000)
+
+        return CreatePlaylistResult(
+            playlist_id=playlist_id,
+            track_count=len(track_ids),
+            api_calls=len(latencies),
+            failed_calls=failed,
+            latencies_ms=latencies,
+        )
