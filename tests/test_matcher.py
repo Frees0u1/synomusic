@@ -61,3 +61,14 @@ def test_fuzzy_low_confidence_when_artist_also_fuzzy():
     result = matcher.match("稻香", "周杰伦")
     assert result.status == MatchStatus.FUZZY
     assert result.low_confidence is True
+
+
+def test_high_title_score_matches_even_when_artist_very_different():
+    # Library has "(Live)" suffix which normalizes away, but artist name is completely different.
+    # Title score ends up 100 — should still match with low confidence rather than be dropped.
+    library = [{"id": "1", "title": "旅行的意义(Live)", "artist": "陳綺貞"}]
+    matcher = Matcher(library, fuzzy_threshold=80)
+    result = matcher.match("旅行的意义", "陈绮贞")
+    assert result.status == MatchStatus.FUZZY
+    assert result.low_confidence is True
+    assert result.track_id == "1"

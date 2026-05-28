@@ -66,7 +66,9 @@ class Matcher:
             if title_score < self._threshold:
                 continue
             artist_score = fuzz.partial_ratio(artist_norm, track["artist_norm"])
-            low_conf = artist_norm != track["artist_norm"] and artist_score >= 65
+            # High title score (>=95) overrides artist threshold — catches cases like
+            # library "(Live)" stripped to exact title match but artist name differs slightly
+            low_conf = artist_norm != track["artist_norm"] and (artist_score >= 65 or title_score >= 95)
             if artist_norm == track["artist_norm"] or low_conf:
                 combined = title_score * 0.7 + artist_score * 0.3
                 if best is None or combined > best_raw_score:
