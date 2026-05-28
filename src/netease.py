@@ -22,6 +22,13 @@ class NeteasePlaylist:
     cover_url: str
 
 
+@dataclass
+class PlaylistPage:
+    playlists: list[NeteasePlaylist]
+    has_more: bool
+    next_before: Optional[int]
+
+
 class NeteaseClient:
     def __init__(self, base_url: str):
         self._base = base_url.rstrip("/")
@@ -35,10 +42,14 @@ class NeteaseClient:
             raise RuntimeError(f"Netease API error {data.get('code')}: {path}")
         return data
 
-    def get_top_playlists(self, limit: int = 20) -> list[NeteasePlaylist]:
-        data = self._get("/top/playlist/highquality", params={"limit": limit})
+    def get_top_playlists(self, limit: int = 20, before: Optional[int] = None) -> PlaylistPage:
+        params: dict = {"limit": limit}
+        if before is not None:
+            params["before"] = before
+        data = self._get("/top/playlist/highquality", params=params)
+        raw_playlists = data.get("playlists", [])
         playlists = []
-        for p in data.get("playlists", []):
+        for p in raw_playlists:
             playlists.append(NeteasePlaylist(
                 id=str(p["id"]),
                 name=p["name"],
@@ -47,7 +58,9 @@ class NeteaseClient:
                 play_count=p.get("playCount", 0),
                 cover_url=p.get("coverImgUrl", ""),
             ))
-        return playlists
+        has_more = bool(data.get("more", False))
+        next_before = raw_playlists[-1].get("updateTime") if raw_playlists else None
+        return PlaylistPage(playlists=playlists, has_more=has_more, next_before=next_before)
 
     def get_playlist_tracks(self, playlist_id: str) -> list[NeteaseTrack]:
         detail = self._get("/playlist/detail", params={"id": playlist_id})
