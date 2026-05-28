@@ -1,5 +1,4 @@
 import os
-import importlib
 import pytest
 from unittest.mock import patch
 
@@ -15,8 +14,6 @@ def test_config_loads_required_fields():
         "HISTORY_FILE": "./data/history.json",
     }
     with patch.dict(os.environ, env, clear=True):
-        import src.config
-        importlib.reload(src.config)
         from src.config import Config
         cfg = Config()
         assert cfg.netease_api_url == "http://localhost:3000"
@@ -30,8 +27,20 @@ def test_config_loads_required_fields():
 
 def test_config_raises_on_missing_required():
     with patch.dict(os.environ, {}, clear=True):
-        import src.config
-        importlib.reload(src.config)
         from src.config import Config
         with pytest.raises(ValueError, match="NAVIDROME_URL"):
             Config()
+
+
+def test_config_strips_trailing_slash_from_urls():
+    env = {
+        "NETEASE_API_URL": "http://localhost:3000/",
+        "NAVIDROME_URL": "http://localhost:4533/",
+        "NAVIDROME_USER": "admin",
+        "NAVIDROME_PASSWORD": "pass",
+    }
+    with patch.dict(os.environ, env, clear=True):
+        from src.config import Config
+        cfg = Config()
+        assert cfg.netease_api_url == "http://localhost:3000"
+        assert cfg.navidrome_url == "http://localhost:4533"
