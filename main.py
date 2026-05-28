@@ -1,3 +1,5 @@
+import glob
+import os
 import re
 import sys
 
@@ -37,7 +39,8 @@ def print_menu() -> None:
         "  [bold cyan]2.[/bold cyan] 浏览热门歌单（按分类）\n"
         "  [bold cyan]3.[/bold cyan] 通过歌单 ID / URL 同步\n"
         "  [bold cyan]4.[/bold cyan] 查看历史同步记录\n"
-        "  [bold cyan]5.[/bold cyan] 退出",
+        "  [bold cyan]5.[/bold cyan] 清除本地缓存\n"
+        "  [bold cyan]6.[/bold cyan] 退出",
         title="[bold]SynoMusic[/bold]  Netease → Navidrome 同步",
         expand=False,
     ))
@@ -175,6 +178,35 @@ def menu_by_id(netease: NeteaseClient, navi: NavidromeClient, cfg: Config) -> No
     run_sync(playlist, netease, navi, cfg, console)
 
 
+def menu_clear_cache(cfg: Config) -> None:
+    history_file = cfg.history_file
+    reports = glob.glob("./data/reports/*.txt")
+
+    if not os.path.exists(history_file) and not reports:
+        console.print("[dim]无本地缓存。[/dim]")
+        return
+
+    lines = []
+    if os.path.exists(history_file):
+        lines.append(f"  · 同步历史  {history_file}")
+    if reports:
+        lines.append(f"  · 同步报告  {len(reports)} 个文件（./data/reports/）")
+    console.print("\n".join(lines))
+
+    confirm = console.input("\n确认清除以上全部？[y/N] ").strip().lower()
+    if confirm != "y":
+        console.print("[dim]已取消。[/dim]")
+        return
+
+    if os.path.exists(history_file):
+        os.remove(history_file)
+        console.print(f"[green]✓[/green] 已删除 {history_file}")
+    for path in reports:
+        os.remove(path)
+    if reports:
+        console.print(f"[green]✓[/green] 已删除 {len(reports)} 个报告文件")
+
+
 def menu_history(cfg: Config) -> None:
     history = History(cfg.history_file)
     records = sorted(history.all(), key=lambda r: r.synced_at, reverse=True)
@@ -223,7 +255,7 @@ def main() -> None:
     while True:
         console.print()
         print_menu()
-        choice = console.input("\n请选择（1-5）：").strip()
+        choice = console.input("\n请选择（1-6）：").strip()
 
         if choice == "1":
             menu_top_playlists(netease, navi, cfg)
@@ -234,10 +266,12 @@ def main() -> None:
         elif choice == "4":
             menu_history(cfg)
         elif choice == "5":
+            menu_clear_cache(cfg)
+        elif choice == "6":
             console.print("再见！")
             break
         else:
-            console.print("[red]无效选项，请输入 1-5。[/red]")
+            console.print("[red]无效选项，请输入 1-6。[/red]")
 
 
 if __name__ == "__main__":
