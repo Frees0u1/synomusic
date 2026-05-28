@@ -27,35 +27,75 @@ def print_menu() -> None:
 
 
 def menu_top_playlists(netease: NeteaseClient, navi: NavidromeClient, cfg: Config) -> None:
-    with console.status("正在获取热门歌单..."):
-        try:
-            page = netease.get_top_playlists(cfg.top_playlist_limit)
-        except Exception as e:
-            console.print(f"[red]获取热门歌单失败：{e}[/red]")
+    pages: list[list] = []
+    current_page = 0
+    has_more = True
+    next_before = None
+
+    def _load_next_page() -> bool:
+        nonlocal has_more, next_before
+        with console.status("正在获取热门歌单..."):
+            try:
+                page: PlaylistPage = netease.get_top_playlists(
+                    cfg.top_playlist_limit, before=next_before
+                )
+            except Exception as e:
+                console.print(f"[red]获取热门歌单失败：{e}[/red]")
+                return False
+        pages.append(page.playlists)
+        has_more = page.has_more
+        next_before = page.next_before
+        return True
+
+    if not _load_next_page():
+        return
+
+    while True:
+        playlists = pages[current_page]
+        table = Table(box=box.ROUNDED)
+        table.add_column("#", justify="right", style="dim")
+        table.add_column("歌单名称")
+        table.add_column("歌曲数", justify="right")
+        table.add_column("播放量", justify="right")
+        for i, p in enumerate(playlists, 1):
+            table.add_row(str(i), p.name, str(p.track_count), f"{p.play_count:,}")
+        console.print(table)
+
+        nav_parts = []
+        if has_more or current_page < len(pages) - 1:
+            nav_parts.append("[cyan]n[/cyan] 下一页")
+        if current_page > 0:
+            nav_parts.append("[cyan]p[/cyan] 上一页")
+        nav_parts.append("[cyan]编号[/cyan] 选择")
+        nav_parts.append("[dim]回车 返回[/dim]")
+        console.print("  ".join(nav_parts) + f"  （第 {current_page + 1} 页，共已加载 {len(pages)} 页）")
+
+        choice = console.input("").strip().lower()
+
+        if choice == "":
             return
-
-    playlists = page.playlists
-    table = Table(box=box.ROUNDED)
-    table.add_column("#", justify="right", style="dim")
-    table.add_column("歌单名称")
-    table.add_column("歌曲数", justify="right")
-    table.add_column("播放量", justify="right")
-    for i, p in enumerate(playlists, 1):
-        table.add_row(str(i), p.name, str(p.track_count), f"{p.play_count:,}")
-    console.print(table)
-
-    choice = console.input("\n请输入歌单编号（回车取消）：").strip()
-    if not choice:
-        return
-    try:
-        idx = int(choice) - 1
-        if not (0 <= idx < len(playlists)):
-            raise ValueError
-    except ValueError:
-        console.print("[red]无效编号。[/red]")
-        return
-
-    run_sync(playlists[idx], netease, navi, cfg, console)
+        elif choice == "n":
+            if current_page < len(pages) - 1:
+                current_page += 1
+            elif has_more:
+                if _load_next_page():
+                    current_page += 1
+            else:
+                console.print("[yellow]已是最后一页。[/yellow]")
+        elif choice == "p":
+            if current_page > 0:
+                current_page -= 1
+            else:
+                console.print("[yellow]已是第一页。[/yellow]")
+        else:
+            try:
+                idx = int(choice) - 1
+                if not (0 <= idx < len(playlists)):
+                    raise ValueError
+            except ValueError:
+                console.print("[red]无效输入。[/red]")
+                continue
+            run_sync(playlists[idx], netease, navi, cfg, console)
 
 
 def menu_by_id(netease: NeteaseClient, navi: NavidromeClient, cfg: Config) -> None:
