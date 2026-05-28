@@ -1,5 +1,5 @@
 from unittest.mock import patch
-from src.netease import NeteaseClient, PlaylistPage, NeteasePlaylist
+from src.netease import NeteaseClient, PlaylistPage
 
 
 def _make_api_response(n=2, more=True):
@@ -37,6 +37,7 @@ def test_get_top_playlists_with_before_param():
             "/top/playlist/highquality", params={"limit": 2, "before": 1700000001}
         )
     assert page.has_more is False
+    assert page.next_before is None
 
 
 def test_get_top_playlists_empty_page():

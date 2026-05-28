@@ -7,7 +7,7 @@ from rich.table import Table
 from rich import box
 
 from src.config import Config
-from src.netease import NeteaseClient
+from src.netease import NeteaseClient, PlaylistPage
 from src.navidrome import NavidromeClient
 from src.sync import run_sync
 from src.history import History
@@ -29,11 +29,12 @@ def print_menu() -> None:
 def menu_top_playlists(netease: NeteaseClient, navi: NavidromeClient, cfg: Config) -> None:
     with console.status("正在获取热门歌单..."):
         try:
-            playlists = netease.get_top_playlists(cfg.top_playlist_limit)
+            page = netease.get_top_playlists(cfg.top_playlist_limit)
         except Exception as e:
             console.print(f"[red]获取热门歌单失败：{e}[/red]")
             return
 
+    playlists = page.playlists
     table = Table(box=box.ROUNDED)
     table.add_column("#", justify="right", style="dim")
     table.add_column("歌单名称")

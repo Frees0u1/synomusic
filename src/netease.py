@@ -59,7 +59,7 @@ class NeteaseClient:
                 cover_url=p.get("coverImgUrl", ""),
             ))
         has_more = bool(data.get("more", False))
-        next_before = raw_playlists[-1].get("updateTime") if raw_playlists else None
+        next_before = raw_playlists[-1].get("updateTime") if (raw_playlists and has_more) else None
         return PlaylistPage(playlists=playlists, has_more=has_more, next_before=next_before)
 
     def get_playlist_tracks(self, playlist_id: str) -> list[NeteaseTrack]:
