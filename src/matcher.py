@@ -68,13 +68,14 @@ class Matcher:
             artist_score = fuzz.partial_ratio(artist_norm, track["artist_norm"])
             low_conf = artist_norm != track["artist_norm"] and artist_score >= 65
             if artist_norm == track["artist_norm"] or low_conf:
-                if best is None or title_score > best_raw_score:
+                combined = title_score * 0.7 + artist_score * 0.3
+                if best is None or combined > best_raw_score:
                     best = MatchResult(
                         status=MatchStatus.FUZZY,
                         track_id=track["id"],
-                        score=int(title_score),
+                        score=int(round(combined)),
                         low_confidence=low_conf,
                     )
-                    best_raw_score = title_score
+                    best_raw_score = combined
 
         return best if best is not None else MatchResult(status=MatchStatus.UNMATCHED)
