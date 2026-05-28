@@ -44,14 +44,6 @@ def print_preview(
     if unique_track_count is not None and unique_track_count != matched:
         dedup_line = f"\n  ➕ 实际添加  [bold]{unique_track_count}[/bold] 首（{matched - unique_track_count} 首去重）"
 
-    stats = "\n".join([
-        f"歌单共 [bold]{total}[/bold] 首{action_tag}",
-        f"  ✅ 严格匹配  [green]{len(strict_matches)}[/green] 首",
-        f"  🔶 模糊匹配  [yellow]{len(fuzzy_matches)}[/yellow] 首",
-        f"  ❌ 未匹配    [red]{len(unmatched)}[/red] 首",
-    ]) + dedup_line
-    console.print(Panel(stats, title=f"[bold]{playlist_name}[/bold]", expand=False))
-
     table = Table(box=box.SIMPLE)
     table.add_column("#", justify="right", style="dim")
     table.add_column("歌曲")
@@ -80,6 +72,14 @@ def print_preview(
         i += 1
 
     console.print(table)
+
+    stats = "\n".join([
+        f"歌单共 [bold]{total}[/bold] 首{action_tag}",
+        f"  ✅ 严格匹配  [green]{len(strict_matches)}[/green] 首",
+        f"  🔶 模糊匹配  [yellow]{len(fuzzy_matches)}[/yellow] 首",
+        f"  ❌ 未匹配    [red]{len(unmatched)}[/red] 首",
+    ]) + dedup_line
+    console.print(Panel(stats, title=f"[bold]{playlist_name}[/bold]", expand=False))
 
 
 def print_fuzzy_details(fuzzy_matches: list[tuple[str, str, MatchResult]], console: Console) -> None:
