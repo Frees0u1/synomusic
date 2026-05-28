@@ -63,7 +63,7 @@ def print_preview(
         for rank, c in enumerate(result.candidates, 1):
             table.add_row(
                 "", f"  [dim]#{rank} {c.title}[/dim]", f"  [dim]{c.artist}[/dim]",
-                f"[dim]候选{rank}[/dim]", f"[dim]{c.score}[/dim]", "",
+                f"[dim]{c.path}[/dim]", f"[dim]{c.score}[/dim]", "",
             )
         i += 1
     for title, artist in unmatched:

@@ -41,6 +41,7 @@ class Candidate:
     title: str
     artist: str
     score: int
+    path: str = ""
 
 
 @dataclass
@@ -59,6 +60,7 @@ class Matcher:
                 "id": t["id"],
                 "title": t["title"],
                 "artist": t["artist"],
+                "path": t.get("path", ""),
                 "title_norm": normalize(t["title"]),
                 "artist_norm": normalize(t["artist"]),
             }
@@ -100,6 +102,7 @@ class Matcher:
                 title=t["title"],
                 artist=t["artist"],
                 score=int(round(c)),
+                path=t.get("path", ""),
             )
             for c, _, t in scored[:3]
         ]

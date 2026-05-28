@@ -11,6 +11,7 @@ class NaviTrack:
     title: str
     artist: str
     album: str
+    path: str = ""
 
 
 class NavidromeClient:
@@ -86,6 +87,7 @@ class NavidromeClient:
                     title=s.get("title", ""),
                     artist=s.get("artist", ""),
                     album=s.get("album", ""),
+                    path=s.get("path", ""),
                 )
                 for s in songs
             ])

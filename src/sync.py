@@ -40,7 +40,7 @@ def _run_sync_inner(
         t2 = progress.add_task("正在加载曲库...", total=None)
         library = navi.get_all_tracks()
         matcher = Matcher(
-            [{"id": t.id, "title": t.title, "artist": t.artist} for t in library],
+            [{"id": t.id, "title": t.title, "artist": t.artist, "path": t.path} for t in library],
             fuzzy_threshold=cfg.fuzzy_match_threshold,
         )
         progress.update(t2, description=f"✅ 曲库共 {len(library)} 首")
