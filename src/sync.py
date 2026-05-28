@@ -5,7 +5,7 @@ from src.config import Config
 from src.netease import NeteaseClient, NeteasePlaylist
 from src.navidrome import NavidromeClient
 from src.matcher import Matcher, MatchStatus
-from src.report import SyncSummary, print_report, save_report, print_fuzzy_details, print_unmatched_list
+from src.report import SyncSummary, print_report, save_report, print_preview
 from src.history import History
 
 
@@ -69,38 +69,7 @@ def _run_sync_inner(
     matched_ids = list(dict.fromkeys(matched_ids))
 
     console.print()
-    total = len(netease_tracks)
-    matched = len(matched_ids)
-    console.print(
-        f"共找到 [bold]{total}[/bold] 首，曲库命中 [bold green]{matched}[/bold green] 首，"
-        f"缺失 [bold red]{len(unmatched_list)}[/bold red] 首"
-    )
-
-    # 预览菜单循环（即使 matched_ids 为空也可查看缺失详情）
-    while True:
-        console.print(
-            f"\n查看详情？"
-            f"  [cyan]1[/cyan] 缺失歌曲（{len(unmatched_list)}首）"
-            f"  [cyan]2[/cyan] 模糊匹配（{len(fuzzy_matches)}首）"
-            f"  [cyan]3[/cyan] 全部"
-            f"  [dim][回车] 跳过[/dim]"
-        )
-        preview_choice = console.input("").strip()
-        if preview_choice == "1":
-            if unmatched_list:
-                print_unmatched_list(unmatched_list, console)
-            else:
-                console.print("[dim]无缺失歌曲。[/dim]")
-        elif preview_choice == "2":
-            if fuzzy_matches:
-                print_fuzzy_details(fuzzy_matches, console)
-            else:
-                console.print("[dim]无模糊匹配。[/dim]")
-        elif preview_choice == "3":
-            print_fuzzy_details(fuzzy_matches, console)
-            print_unmatched_list(unmatched_list, console)
-        else:
-            break
+    print_preview(strict_matches, fuzzy_matches, unmatched_list, playlist.name, console)
 
     if not matched_ids:
         console.print("[yellow]曲库中没有匹配的歌曲，取消创建播放列表。[/yellow]")

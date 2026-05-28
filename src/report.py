@@ -27,6 +27,48 @@ def _safe_filename(name: str) -> str:
     return re.sub(r'[\\/:*?"<>|]', "_", name)
 
 
+def print_preview(
+    strict_matches: list[tuple[str, str, MatchResult]],
+    fuzzy_matches: list[tuple[str, str, MatchResult]],
+    unmatched: list[tuple[str, str]],
+    playlist_name: str,
+    console: Console,
+) -> None:
+    total = len(strict_matches) + len(fuzzy_matches) + len(unmatched)
+
+    stats = "\n".join([
+        f"歌单共 [bold]{total}[/bold] 首",
+        f"  ✅ 严格匹配  [green]{len(strict_matches)}[/green] 首",
+        f"  🔶 模糊匹配  [yellow]{len(fuzzy_matches)}[/yellow] 首",
+        f"  ❌ 未匹配    [red]{len(unmatched)}[/red] 首",
+    ])
+    console.print(Panel(stats, title=f"[bold]{playlist_name}[/bold]", expand=False))
+
+    table = Table(box=box.SIMPLE)
+    table.add_column("#", justify="right", style="dim")
+    table.add_column("歌曲")
+    table.add_column("艺术家")
+    table.add_column("匹配", justify="center")
+    table.add_column("得分", justify="right")
+    table.add_column("置信度", justify="center")
+
+    i = 1
+    for title, artist, _ in strict_matches:
+        table.add_row(str(i), title, artist, "[green]严格[/green]", "-", "-")
+        i += 1
+    for title, artist, result in fuzzy_matches:
+        conf = "[red]低[/red]" if result.low_confidence else "[green]正常[/green]"
+        table.add_row(str(i), f"[yellow]{title}[/yellow]", f"[yellow]{artist}[/yellow]",
+                      "[yellow]模糊[/yellow]", str(result.score), conf)
+        i += 1
+    for title, artist in unmatched:
+        table.add_row(str(i), f"[red]{title}[/red]", f"[red]{artist}[/red]",
+                      "[red]未匹配[/red]", "-", "-")
+        i += 1
+
+    console.print(table)
+
+
 def print_fuzzy_details(fuzzy_matches: list[tuple[str, str, MatchResult]], console: Console) -> None:
     if not fuzzy_matches:
         return
