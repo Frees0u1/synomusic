@@ -7,7 +7,7 @@ from rich.table import Table
 from rich import box
 
 from src.config import Config
-from src.netease import NeteaseClient, PlaylistPage
+from src.netease import NeteaseClient, NeteasePlaylist, PlaylistPage
 from src.navidrome import NavidromeClient
 from src.sync import run_sync
 from src.history import History
@@ -27,7 +27,7 @@ def print_menu() -> None:
 
 
 def menu_top_playlists(netease: NeteaseClient, navi: NavidromeClient, cfg: Config) -> None:
-    pages: list[list] = []
+    pages: list[list[NeteasePlaylist]] = []
     current_page = 0
     has_more = True
     next_before = None
