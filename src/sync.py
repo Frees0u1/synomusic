@@ -50,7 +50,7 @@ def run_sync(
             else:
                 unmatched_list.append((track.title, track.artist))
 
-        progress.update(t3, description=f"✅ 匹配完成")
+        progress.update(t3, description="✅ 匹配完成")
         progress.stop_task(t3)
 
     console.print()
@@ -74,6 +74,7 @@ def run_sync(
         t4 = progress.add_task("正在创建播放列表...", total=None)
         playlist_id = navi.create_playlist(playlist.name, matched_ids)
         progress.update(t4, description="✅ 播放列表已创建")
+        progress.stop_task(t4)
 
     summary = SyncSummary(
         playlist_name=playlist.name,
