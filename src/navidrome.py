@@ -110,4 +110,8 @@ class NavidromeClient:
                 timeout=30,
             )
             resp.raise_for_status()
+            update_root = resp.json().get("subsonic-response", {})
+            if update_root.get("status") != "ok":
+                error = update_root.get("error", {})
+                raise RuntimeError(f"Subsonic updatePlaylist error {error.get('code')}: {error.get('message')}")
         return playlist_id
