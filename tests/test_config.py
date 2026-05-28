@@ -26,7 +26,7 @@ def test_config_loads_required_fields():
 
 
 def test_config_raises_on_missing_required():
-    with patch.dict(os.environ, {}, clear=True):
+    with patch.dict(os.environ, {}, clear=True), patch("src.config.load_dotenv"):
         from src.config import Config
         with pytest.raises(ValueError, match="NAVIDROME_URL"):
             Config()
