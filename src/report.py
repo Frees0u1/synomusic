@@ -28,7 +28,6 @@ def _safe_filename(name: str) -> str:
 
 
 def print_report(summary: SyncSummary, console: Console) -> None:
-    matched = len(summary.strict_matches) + len(summary.fuzzy_matches)
     panel_lines = [
         f"歌单共 [bold]{summary.total}[/bold] 首",
         f"✅ 严格匹配  [green]{len(summary.strict_matches)}[/green] 首",
