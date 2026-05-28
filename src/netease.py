@@ -24,7 +24,7 @@ class NeteasePlaylist:
 
 class NeteaseClient:
     def __init__(self, base_url: str):
-        self._base = base_url
+        self._base = base_url.rstrip("/")
         self._session = requests.Session()
 
     def _get(self, path: str, params: Optional[dict] = None) -> dict:
@@ -73,7 +73,9 @@ class NeteaseClient:
 
     def get_playlist_by_id(self, playlist_id: str) -> NeteasePlaylist:
         data = self._get("/playlist/detail", params={"id": playlist_id})
-        p = data["playlist"]
+        p = data.get("playlist")
+        if p is None:
+            raise RuntimeError(f"Playlist {playlist_id} not found")
         return NeteasePlaylist(
             id=str(p["id"]),
             name=p["name"],
