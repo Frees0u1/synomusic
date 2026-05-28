@@ -9,7 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich import box
 
-from src.matcher import MatchResult, MatchStatus
+from src.matcher import Candidate, MatchResult, MatchStatus
 
 
 @dataclass
@@ -60,6 +60,11 @@ def print_preview(
         conf = "[red]低[/red]" if result.low_confidence else "[green]正常[/green]"
         table.add_row(str(i), f"[yellow]{title}[/yellow]", f"[yellow]{artist}[/yellow]",
                       "[yellow]模糊[/yellow]", str(result.score), conf)
+        for rank, c in enumerate(result.candidates, 1):
+            table.add_row(
+                "", f"  [dim]#{rank} {c.title}[/dim]", f"  [dim]{c.artist}[/dim]",
+                f"[dim]候选{rank}[/dim]", f"[dim]{c.score}[/dim]", "",
+            )
         i += 1
     for title, artist in unmatched:
         table.add_row(str(i), f"[red]{title}[/red]", f"[red]{artist}[/red]",

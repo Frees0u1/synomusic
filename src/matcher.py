@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
@@ -30,11 +30,20 @@ class MatchStatus(Enum):
 
 
 @dataclass
+class Candidate:
+    track_id: str
+    title: str
+    artist: str
+    score: int
+
+
+@dataclass
 class MatchResult:
     status: MatchStatus
     track_id: Optional[str] = None
     score: int = 0
     low_confidence: bool = False
+    candidates: list[Candidate] = field(default_factory=list)
 
 
 class Matcher:
@@ -42,6 +51,8 @@ class Matcher:
         self._library = [
             {
                 "id": t["id"],
+                "title": t["title"],
+                "artist": t["artist"],
                 "title_norm": normalize(t["title"]),
                 "artist_norm": normalize(t["artist"]),
             }
@@ -58,9 +69,8 @@ class Matcher:
             if track["title_norm"] == title_norm and track["artist_norm"] == artist_norm:
                 return MatchResult(status=MatchStatus.STRICT, track_id=track["id"], score=100)
 
-        # Level 2: fuzzy
-        best: Optional[MatchResult] = None
-        best_raw_score: float = 0.0
+        # Level 2: fuzzy — collect all candidates, keep top 3 by combined score
+        scored: list[tuple[float, bool, dict]] = []
         for track in self._library:
             title_score = fuzz.ratio(title_norm, track["title_norm"])
             if title_score < self._threshold:
@@ -71,13 +81,26 @@ class Matcher:
             low_conf = artist_norm != track["artist_norm"] and (artist_score >= 65 or title_score >= 95)
             if artist_norm == track["artist_norm"] or low_conf:
                 combined = title_score * 0.7 + artist_score * 0.3
-                if best is None or combined > best_raw_score:
-                    best = MatchResult(
-                        status=MatchStatus.FUZZY,
-                        track_id=track["id"],
-                        score=int(round(combined)),
-                        low_confidence=low_conf,
-                    )
-                    best_raw_score = combined
+                scored.append((combined, low_conf, track))
 
-        return best if best is not None else MatchResult(status=MatchStatus.UNMATCHED)
+        if not scored:
+            return MatchResult(status=MatchStatus.UNMATCHED)
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        best_combined, best_low_conf, best_track = scored[0]
+        candidates = [
+            Candidate(
+                track_id=t["id"],
+                title=t["title"],
+                artist=t["artist"],
+                score=int(round(c)),
+            )
+            for c, _, t in scored[:3]
+        ]
+        return MatchResult(
+            status=MatchStatus.FUZZY,
+            track_id=best_track["id"],
+            score=int(round(best_combined)),
+            low_confidence=best_low_conf,
+            candidates=candidates,
+        )
