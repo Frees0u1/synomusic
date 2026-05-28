@@ -33,11 +33,13 @@ def print_preview(
     unmatched: list[tuple[str, str]],
     playlist_name: str,
     console: Console,
+    playlist_exists: bool = False,
 ) -> None:
     total = len(strict_matches) + len(fuzzy_matches) + len(unmatched)
+    action_tag = "  [yellow]（歌单已存在，将覆盖更新）[/yellow]" if playlist_exists else ""
 
     stats = "\n".join([
-        f"歌单共 [bold]{total}[/bold] 首",
+        f"歌单共 [bold]{total}[/bold] 首{action_tag}",
         f"  ✅ 严格匹配  [green]{len(strict_matches)}[/green] 首",
         f"  🔶 模糊匹配  [yellow]{len(fuzzy_matches)}[/yellow] 首",
         f"  ❌ 未匹配    [red]{len(unmatched)}[/red] 首",

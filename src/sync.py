@@ -69,33 +69,42 @@ def _run_sync_inner(
     matched_ids = list(dict.fromkeys(matched_ids))
     total = len(netease_tracks)
 
+    existing_playlists = navi.get_playlists()
+    playlist_exists = any(p.get("name") == playlist.name for p in existing_playlists)
+
     console.print()
-    print_preview(strict_matches, fuzzy_matches, unmatched_list, playlist.name, console)
+    print_preview(strict_matches, fuzzy_matches, unmatched_list, playlist.name, console,
+                  playlist_exists=playlist_exists)
 
     if not matched_ids:
         console.print("[yellow]曲库中没有匹配的歌曲，取消创建播放列表。[/yellow]")
         return
 
-    confirm = console.input(f"\n确认创建播放列表「{playlist.name}」？[Y/n] ").strip().lower()
+    action = "更新" if playlist_exists else "创建"
+    confirm = console.input(f"\n确认{action}播放列表「{playlist.name}」？[Y/n] ").strip().lower()
     if confirm == "n":
         console.print("[yellow]已取消。[/yellow]")
         return
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
-        t4 = progress.add_task("正在创建播放列表...", total=None)
+        t4 = progress.add_task(f"正在{action}播放列表...", total=None)
         result: CreatePlaylistResult = navi.create_playlist(playlist.name, matched_ids)
-        progress.update(t4, description="✅ 播放列表已创建")
+        progress.update(t4, description=f"✅ 播放列表已{action}")
         progress.stop_task(t4)
 
-    status = "[red]有失败[/red]" if result.failed_calls else "[green]全部成功[/green]"
-    console.print(
-        f"\n[bold]创建统计[/bold]\n"
-        f"  歌曲数      {result.track_count} 首\n"
-        f"  API 调用    {result.api_calls} 次（{status}）\n"
-        f"  总耗时      {result.total_ms:.0f} ms\n"
-        f"  平均延迟    {result.avg_ms:.0f} ms\n"
-        f"  最大延迟    {result.max_ms:.0f} ms"
-    )
+    action = "[green]新建[/green]" if result.created else "[yellow]更新[/yellow]"
+    overall_status = "[red]有失败[/red]" if result.failed_calls else "[green]全部成功[/green]"
+    lines = [
+        f"歌单「{result.playlist_name}」{action}，共 [bold]{result.track_count}[/bold] 首  {overall_status}",
+        "",
+    ]
+    for s in result.stats:
+        failed_tag = f"  [red]{s.failed} 次失败[/red]" if s.failed else ""
+        lines.append(
+            f"  {s.endpoint:<30} {s.calls} 次  avg {s.avg_ms:.0f}ms  max {s.max_ms:.0f}ms{failed_tag}"
+        )
+    lines.append(f"\n  总耗时  {result.total_ms:.0f} ms")
+    console.print("\n[bold]创建统计[/bold]\n" + "\n".join(lines))
 
     summary = SyncSummary(
         playlist_name=playlist.name,

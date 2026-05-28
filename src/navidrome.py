@@ -16,24 +16,42 @@ class NaviTrack:
 
 
 @dataclass
-class CreatePlaylistResult:
-    playlist_id: str
-    track_count: int
-    api_calls: int
-    failed_calls: int
+class ApiCallStat:
+    endpoint: str
+    calls: int = 0
+    failed: int = 0
     latencies_ms: list[float] = field(default_factory=list)
 
-    @property
-    def total_ms(self) -> float:
-        return sum(self.latencies_ms)
+    def record(self, latency_ms: float, failed: bool = False) -> None:
+        self.calls += 1
+        self.latencies_ms.append(latency_ms)
+        if failed:
+            self.failed += 1
 
     @property
     def avg_ms(self) -> float:
-        return self.total_ms / len(self.latencies_ms) if self.latencies_ms else 0.0
+        return sum(self.latencies_ms) / len(self.latencies_ms) if self.latencies_ms else 0.0
 
     @property
     def max_ms(self) -> float:
         return max(self.latencies_ms) if self.latencies_ms else 0.0
+
+
+@dataclass
+class CreatePlaylistResult:
+    playlist_id: str
+    playlist_name: str
+    track_count: int
+    created: bool          # True = new playlist, False = updated existing
+    stats: list[ApiCallStat] = field(default_factory=list)
+
+    @property
+    def total_ms(self) -> float:
+        return sum(s.avg_ms * s.calls for s in self.stats)
+
+    @property
+    def failed_calls(self) -> int:
+        return sum(s.failed for s in self.stats)
 
 
 class NavidromeClient:
@@ -118,42 +136,104 @@ class NavidromeClient:
             offset += size
         return tracks
 
-    def create_playlist(self, name: str, track_ids: list[str]) -> CreatePlaylistResult:
+    def _timed_get(self, stat: ApiCallStat, endpoint: str, params: Optional[dict] = None) -> dict:
         t0 = time.monotonic()
-        data = self._get("createPlaylist", params={"name": name})
-        create_latency = (time.monotonic() - t0) * 1000
-        playlist_id = str(data["playlist"]["id"])
+        failed = False
+        try:
+            result = self._get(endpoint, params=params)
+            return result
+        except Exception:
+            failed = True
+            raise
+        finally:
+            stat.record((time.monotonic() - t0) * 1000, failed=failed)
 
-        latencies: list[float] = [create_latency]
-        failed = 0
+    def _timed_raw(self, stat: ApiCallStat, endpoint: str, params: list) -> None:
+        """For repeated-key params (songIdToAdd, songIndexToRemove)."""
+        t0 = time.monotonic()
+        failed = False
+        try:
+            auth = self._auth_params()
+            resp = self._session.get(
+                f"{self._base}/{endpoint}",
+                params=list(auth.items()) + params,
+                timeout=30,
+            )
+            resp.raise_for_status()
+            root = resp.json().get("subsonic-response", {})
+            if root.get("status") != "ok":
+                error = root.get("error", {})
+                raise RuntimeError(f"Subsonic {endpoint} error {error.get('code')}: {error.get('message')}")
+        except Exception:
+            failed = True
+            raise
+        finally:
+            stat.record((time.monotonic() - t0) * 1000, failed=failed)
+
+    def get_playlists(self) -> list[dict]:
+        data = self._get("getPlaylists")
+        playlists = data.get("playlists", {})
+        if isinstance(playlists, dict):
+            return playlists.get("playlist", []) or []
+        return []
+
+    def get_playlist_song_count(self, playlist_id: str) -> int:
+        data = self._get("getPlaylist", params={"id": playlist_id})
+        return int(data.get("playlist", {}).get("songCount", 0))
+
+    def create_playlist(self, name: str, track_ids: list[str]) -> CreatePlaylistResult:
+        stat_get_playlists = ApiCallStat("getPlaylists")
+        stat_create = ApiCallStat("createPlaylist")
+        stat_get_playlist = ApiCallStat("getPlaylist")
+        stat_update_clear = ApiCallStat("updatePlaylist[clear]")
+        stat_update_add = ApiCallStat("updatePlaylist[add]")
+
+        # findOrCreate
+        t0 = time.monotonic()
+        try:
+            existing = self.get_playlists()
+        finally:
+            stat_get_playlists.record((time.monotonic() - t0) * 1000)
+
+        existing_id = next((p["id"] for p in existing if p.get("name") == name), None)
+        created = existing_id is None
+
+        if created:
+            data = self._timed_get(stat_create, "createPlaylist", params={"name": name})
+            playlist_id = str(data["playlist"]["id"])
+        else:
+            playlist_id = existing_id
+            # Clear existing songs
+            t1 = time.monotonic()
+            try:
+                song_count = self.get_playlist_song_count(playlist_id)
+            finally:
+                stat_get_playlist.record((time.monotonic() - t1) * 1000)
+
+            if song_count > 0:
+                chunk_size = 200
+                for i in range(0, song_count, chunk_size):
+                    indices = list(range(i, min(i + chunk_size, song_count)))
+                    self._timed_raw(
+                        stat_update_clear, "updatePlaylist",
+                        [("playlistId", playlist_id)] + [("songIndexToRemove", idx) for idx in indices],
+                    )
+
+        # Add all tracks in chunks of 200
         chunk_size = 200
         for i in range(0, len(track_ids), chunk_size):
             chunk = track_ids[i:i + chunk_size]
-            auth = self._auth_params()
-            auth["playlistId"] = playlist_id
-            song_params = [("songIdToAdd", tid) for tid in chunk]
-            t1 = time.monotonic()
-            try:
-                resp = self._session.get(
-                    f"{self._base}/updatePlaylist",
-                    params=list(auth.items()) + song_params,
-                    timeout=30,
-                )
-                resp.raise_for_status()
-                update_root = resp.json().get("subsonic-response", {})
-                if update_root.get("status") != "ok":
-                    error = update_root.get("error", {})
-                    raise RuntimeError(f"Subsonic updatePlaylist error {error.get('code')}: {error.get('message')}")
-            except Exception:
-                failed += 1
-                raise
-            finally:
-                latencies.append((time.monotonic() - t1) * 1000)
+            self._timed_raw(
+                stat_update_add, "updatePlaylist",
+                [("playlistId", playlist_id)] + [("songIdToAdd", tid) for tid in chunk],
+            )
 
+        stats = [s for s in [stat_get_playlists, stat_create, stat_get_playlist,
+                              stat_update_clear, stat_update_add] if s.calls > 0]
         return CreatePlaylistResult(
             playlist_id=playlist_id,
+            playlist_name=name,
             track_count=len(track_ids),
-            api_calls=len(latencies),
-            failed_calls=failed,
-            latencies_ms=latencies,
+            created=created,
+            stats=stats,
         )
