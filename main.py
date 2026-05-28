@@ -14,37 +14,58 @@ from src.history import History
 
 console = Console()
 
+HOT_PLAYLIST_CATS = [
+    ("全部",   "全部"),
+    ("华语",   "华语"),
+    ("流行",   "流行"),
+    ("摇滚",   "摇滚"),
+    ("民谣",   "民谣"),
+    ("电子",   "电子"),
+    ("说唱",   "说唱"),
+    ("轻音乐", "轻音乐"),
+    ("影视原声", "影视原声"),
+    ("ACG",   "ACG"),
+    ("欧美",   "欧美"),
+    ("日语",   "日语"),
+    ("韩语",   "韩语"),
+]
+
 
 def print_menu() -> None:
     console.print(Panel(
-        "  [bold cyan]1.[/bold cyan] 浏览热门歌单并同步\n"
-        "  [bold cyan]2.[/bold cyan] 通过歌单 ID / URL 同步\n"
-        "  [bold cyan]3.[/bold cyan] 查看历史同步记录\n"
-        "  [bold cyan]4.[/bold cyan] 退出",
+        "  [bold cyan]1.[/bold cyan] 浏览编辑精选歌单\n"
+        "  [bold cyan]2.[/bold cyan] 浏览热门歌单（按分类）\n"
+        "  [bold cyan]3.[/bold cyan] 通过歌单 ID / URL 同步\n"
+        "  [bold cyan]4.[/bold cyan] 查看历史同步记录\n"
+        "  [bold cyan]5.[/bold cyan] 退出",
         title="[bold]SynoMusic[/bold]  Netease → Navidrome 同步",
         expand=False,
     ))
 
 
-def menu_top_playlists(netease: NeteaseClient, navi: NavidromeClient, cfg: Config) -> None:
+def _playlist_browse_loop(
+    netease: NeteaseClient,
+    navi: NavidromeClient,
+    cfg: Config,
+    fetch_page,
+    status_text: str,
+) -> None:
     pages: list[list[NeteasePlaylist]] = []
     current_page = 0
     has_more = True
-    next_before = None
+    cursor = None
 
     def _load_next_page() -> bool:
-        nonlocal has_more, next_before
-        with console.status("正在获取热门歌单..."):
+        nonlocal has_more, cursor
+        with console.status(status_text):
             try:
-                page: PlaylistPage = netease.get_top_playlists(
-                    cfg.top_playlist_limit, before=next_before
-                )
+                page: PlaylistPage = fetch_page(cursor)
             except Exception as e:
-                console.print(f"[red]获取热门歌单失败：{e}[/red]")
+                console.print(f"[red]获取歌单失败：{e}[/red]")
                 return False
         pages.append(page.playlists)
         has_more = page.has_more
-        next_before = page.next_before
+        cursor = page.next_before
         return True
 
     if not _load_next_page():
@@ -96,6 +117,45 @@ def menu_top_playlists(netease: NeteaseClient, navi: NavidromeClient, cfg: Confi
                 console.print("[red]无效输入。[/red]")
                 continue
             run_sync(playlists[idx], netease, navi, cfg, console)
+
+
+def menu_top_playlists(netease: NeteaseClient, navi: NavidromeClient, cfg: Config) -> None:
+    _playlist_browse_loop(
+        netease, navi, cfg,
+        fetch_page=lambda cursor: netease.get_top_playlists(cfg.top_playlist_limit, before=cursor),
+        status_text="正在获取编辑精选歌单...",
+    )
+
+
+def menu_hot_playlists(netease: NeteaseClient, navi: NavidromeClient, cfg: Config) -> None:
+    table = Table(box=box.SIMPLE, show_header=False)
+    table.add_column("编号", justify="right", style="cyan")
+    table.add_column("分类")
+    for i, (label, _) in enumerate(HOT_PLAYLIST_CATS, 1):
+        table.add_row(str(i), label)
+    console.print(table)
+
+    raw = console.input("选择分类（回车默认全部）：").strip()
+    if not raw:
+        cat_key = "全部"
+        cat_label = "全部"
+    else:
+        try:
+            idx = int(raw) - 1
+            if not (0 <= idx < len(HOT_PLAYLIST_CATS)):
+                raise ValueError
+            cat_label, cat_key = HOT_PLAYLIST_CATS[idx]
+        except ValueError:
+            console.print("[red]无效选择。[/red]")
+            return
+
+    _playlist_browse_loop(
+        netease, navi, cfg,
+        fetch_page=lambda cursor: netease.get_hot_playlists(
+            cfg.top_playlist_limit, cat=cat_key, offset=cursor or 0
+        ),
+        status_text=f"正在获取热门歌单（{cat_label}）...",
+    )
 
 
 def menu_by_id(netease: NeteaseClient, navi: NavidromeClient, cfg: Config) -> None:
@@ -163,19 +223,21 @@ def main() -> None:
     while True:
         console.print()
         print_menu()
-        choice = console.input("\n请选择（1-4）：").strip()
+        choice = console.input("\n请选择（1-5）：").strip()
 
         if choice == "1":
             menu_top_playlists(netease, navi, cfg)
         elif choice == "2":
-            menu_by_id(netease, navi, cfg)
+            menu_hot_playlists(netease, navi, cfg)
         elif choice == "3":
-            menu_history(cfg)
+            menu_by_id(netease, navi, cfg)
         elif choice == "4":
+            menu_history(cfg)
+        elif choice == "5":
             console.print("再见！")
             break
         else:
-            console.print("[red]无效选项，请输入 1-4。[/red]")
+            console.print("[red]无效选项，请输入 1-5。[/red]")
 
 
 if __name__ == "__main__":

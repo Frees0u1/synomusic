@@ -62,6 +62,23 @@ class NeteaseClient:
         next_before = raw_playlists[-1].get("updateTime") if (raw_playlists and has_more) else None
         return PlaylistPage(playlists=playlists, has_more=has_more, next_before=next_before)
 
+    def get_hot_playlists(self, limit: int = 20, cat: str = "全部", offset: int = 0) -> PlaylistPage:
+        data = self._get("/top/playlist", params={"limit": limit, "cat": cat, "order": "hot", "offset": offset})
+        raw_playlists = data.get("playlists", [])
+        playlists = []
+        for p in raw_playlists:
+            playlists.append(NeteasePlaylist(
+                id=str(p["id"]),
+                name=p["name"],
+                description=p.get("description") or "",
+                track_count=p.get("trackCount", 0),
+                play_count=p.get("playCount", 0),
+                cover_url=p.get("coverImgUrl", ""),
+            ))
+        has_more = bool(data.get("more", False))
+        next_before = offset + limit if has_more else None
+        return PlaylistPage(playlists=playlists, has_more=has_more, next_before=next_before)
+
     def get_playlist_tracks(self, playlist_id: str) -> list[NeteaseTrack]:
         detail = self._get("/playlist/detail", params={"id": playlist_id})
         track_ids = [str(t["id"]) for t in detail.get("playlist", {}).get("trackIds", [])]
