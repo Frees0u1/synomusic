@@ -185,8 +185,8 @@ class NavidromeClient:
         stat_get_playlists = ApiCallStat("getPlaylists")
         stat_create = ApiCallStat("createPlaylist")
         stat_get_playlist = ApiCallStat("getPlaylist")
-        stat_update_clear = ApiCallStat("updatePlaylist[clear]")
-        stat_update_add = ApiCallStat("updatePlaylist[add]")
+        stat_update_clear = ApiCallStat("updatePlaylist (clear)")
+        stat_update_add = ApiCallStat("updatePlaylist (add)")
 
         # findOrCreate
         t0 = time.monotonic()
@@ -228,8 +228,7 @@ class NavidromeClient:
                 [("playlistId", playlist_id)] + [("songIdToAdd", tid) for tid in chunk],
             )
 
-        stats = [s for s in [stat_get_playlists, stat_create, stat_get_playlist,
-                              stat_update_clear, stat_update_add] if s.calls > 0]
+        stats = [s for s in [stat_create, stat_update_clear, stat_update_add] if s.calls > 0]
         return CreatePlaylistResult(
             playlist_id=playlist_id,
             playlist_name=name,
