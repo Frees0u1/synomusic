@@ -51,6 +51,9 @@ class MatchResult:
     score: int = 0
     low_confidence: bool = False
     candidates: list[Candidate] = field(default_factory=list)
+    matched_title: str = ""
+    matched_artist: str = ""
+    matched_path: str = ""
 
 
 class Matcher:
@@ -75,7 +78,11 @@ class Matcher:
         # Level 1: strict
         for track in self._library:
             if track["title_norm"] == title_norm and track["artist_norm"] == artist_norm:
-                return MatchResult(status=MatchStatus.STRICT, track_id=track["id"], score=100)
+                return MatchResult(
+                    status=MatchStatus.STRICT, track_id=track["id"], score=100,
+                    matched_title=track["title"], matched_artist=track["artist"],
+                    matched_path=track.get("path", ""),
+                )
 
         # Level 2: fuzzy — collect all candidates, keep top 3 by combined score
         scored: list[tuple[float, bool, dict]] = []
@@ -112,4 +119,7 @@ class Matcher:
             score=int(round(best_combined)),
             low_confidence=best_low_conf,
             candidates=candidates,
+            matched_title=best_track["title"],
+            matched_artist=best_track["artist"],
+            matched_path=best_track.get("path", ""),
         )

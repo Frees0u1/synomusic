@@ -67,17 +67,22 @@ def _run_sync_inner(
         progress.stop_task(t3)
 
     # Detect collisions: multiple netease tracks mapped to the same navidrome track
-    seen_ids: dict[str, tuple[str, str]] = {}  # track_id -> (title, artist) of first match
-    collisions: list[tuple[str, str, str, str]] = []  # (title1, artist1, title2, artist2)
+    # group: track_id -> {navi info, [netease songs]}
+    seen: dict[str, dict] = {}
     deduped_ids: list[str] = []
     all_matches = strict_matches + fuzzy_matches
     for (title, artist, result) in all_matches:
         tid = result.track_id
-        if tid in seen_ids:
-            collisions.append((seen_ids[tid][0], seen_ids[tid][1], title, artist))
-        else:
-            seen_ids[tid] = (title, artist)
+        if tid not in seen:
+            seen[tid] = {
+                "navi_title": result.matched_title,
+                "navi_artist": result.matched_artist,
+                "navi_path": result.matched_path,
+                "netease": [],
+            }
             deduped_ids.append(tid)
+        seen[tid]["netease"].append((title, artist))
+    collisions = {tid: info for tid, info in seen.items() if len(info["netease"]) > 1}
     matched_ids = deduped_ids
     total = len(netease_tracks)
 
@@ -86,9 +91,14 @@ def _run_sync_inner(
 
     console.print()
     if collisions:
-        console.print(f"[yellow]⚠ {len(collisions)} 首网易云歌曲被合并到同一首曲库记录（已去重）：[/yellow]")
-        for t1, a1, t2, a2 in collisions:
-            console.print(f"  [dim]{a1} - {t1}[/dim]  →  [dim]{a2} - {t2}[/dim]  [red]（后者被丢弃）[/red]")
+        console.print(f"[yellow]⚠ {len(collisions)} 条曲库记录被多首网易云歌曲共用（已去重）：[/yellow]")
+        for info in collisions.values():
+            console.print(
+                f"\n  [bold]Navidrome:[/bold] {info['navi_artist']} - {info['navi_title']}"
+                f"\n  [dim]{info['navi_path']}[/dim]"
+            )
+            for title, artist in info["netease"]:
+                console.print(f"    · 网易云：{artist} - {title}")
         console.print()
     print_preview(strict_matches, fuzzy_matches, unmatched_list, playlist.name, console,
                   playlist_exists=playlist_exists, unique_track_count=len(matched_ids))
