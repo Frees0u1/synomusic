@@ -193,8 +193,8 @@ def menu_clear_cache(cfg: Config) -> None:
         lines.append(f"  · 同步报告  {len(reports)} 个文件（./data/reports/）")
     console.print("\n".join(lines))
 
-    confirm = console.input("\n确认清除以上全部？[y/N] ").strip().lower()
-    if confirm != "y":
+    confirm = console.input("\n确认清除以上全部？[Y/n] ").strip().lower()
+    if confirm == "n":
         console.print("[dim]已取消。[/dim]")
         return
 
