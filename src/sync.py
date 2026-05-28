@@ -66,13 +66,30 @@ def _run_sync_inner(
         progress.update(t3, description="✅ 匹配完成")
         progress.stop_task(t3)
 
-    matched_ids = list(dict.fromkeys(matched_ids))
+    # Detect collisions: multiple netease tracks mapped to the same navidrome track
+    seen_ids: dict[str, tuple[str, str]] = {}  # track_id -> (title, artist) of first match
+    collisions: list[tuple[str, str, str, str]] = []  # (title1, artist1, title2, artist2)
+    deduped_ids: list[str] = []
+    all_matches = strict_matches + fuzzy_matches
+    for (title, artist, result) in all_matches:
+        tid = result.track_id
+        if tid in seen_ids:
+            collisions.append((seen_ids[tid][0], seen_ids[tid][1], title, artist))
+        else:
+            seen_ids[tid] = (title, artist)
+            deduped_ids.append(tid)
+    matched_ids = deduped_ids
     total = len(netease_tracks)
 
     existing_playlists = navi.get_playlists()
     playlist_exists = any(p.get("name") == playlist.name for p in existing_playlists)
 
     console.print()
+    if collisions:
+        console.print(f"[yellow]⚠ {len(collisions)} 首网易云歌曲被合并到同一首曲库记录（已去重）：[/yellow]")
+        for t1, a1, t2, a2 in collisions:
+            console.print(f"  [dim]{a1} - {t1}[/dim]  →  [dim]{a2} - {t2}[/dim]  [red]（后者被丢弃）[/red]")
+        console.print()
     print_preview(strict_matches, fuzzy_matches, unmatched_list, playlist.name, console,
                   playlist_exists=playlist_exists, unique_track_count=len(matched_ids))
 
