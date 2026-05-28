@@ -11,6 +11,11 @@ VERSION_TAGS = re.compile(
     r"\s*[\(\[（【][^\)\]）】]*(live|remix|remaster(?:ed)?|acoustic|cover|version|\d{4})[^\)\]）】]*[\)\]）】]",
     re.IGNORECASE,
 )
+# Handles bare suffix style: " - live", " - acoustic", etc. (no brackets)
+VERSION_SUFFIX = re.compile(
+    r"\s+-\s+(live|remix|remaster(?:ed)?|acoustic|cover|version)\s*$",
+    re.IGNORECASE,
+)
 FEAT_PATTERN = re.compile(r"\bft\.|\bft\b|\bfeaturing\b", re.IGNORECASE)
 
 
@@ -20,6 +25,7 @@ def normalize(text: str) -> str:
     text = text.lower()
     text = FEAT_PATTERN.sub("feat.", text)
     text = VERSION_TAGS.sub("", text)
+    text = VERSION_SUFFIX.sub("", text)
     return text.strip()
 
 

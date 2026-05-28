@@ -24,6 +24,9 @@ def test_normalize_removes_version_tags():
     assert normalize("Song (Remix)") == "song"
     assert normalize("Song (Remastered)") == "song"
     assert normalize("Song (2024 Remaster)") == "song"
+    assert normalize("旅行的意义(Live) - live") == "旅行的意义"
+    assert normalize("Song - Acoustic") == "song"
+    assert normalize("Song - Live") == "song"
 
 
 def test_strict_match():
