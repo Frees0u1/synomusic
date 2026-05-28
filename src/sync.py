@@ -74,7 +74,7 @@ def _run_sync_inner(
 
     console.print()
     print_preview(strict_matches, fuzzy_matches, unmatched_list, playlist.name, console,
-                  playlist_exists=playlist_exists)
+                  playlist_exists=playlist_exists, unique_track_count=len(matched_ids))
 
     if not matched_ids:
         console.print("[yellow]曲库中没有匹配的歌曲，取消创建播放列表。[/yellow]")

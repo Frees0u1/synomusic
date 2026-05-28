@@ -34,16 +34,22 @@ def print_preview(
     playlist_name: str,
     console: Console,
     playlist_exists: bool = False,
+    unique_track_count: Optional[int] = None,
 ) -> None:
     total = len(strict_matches) + len(fuzzy_matches) + len(unmatched)
+    matched = len(strict_matches) + len(fuzzy_matches)
     action_tag = "  [yellow]（歌单已存在，将覆盖更新）[/yellow]" if playlist_exists else ""
+
+    dedup_line = ""
+    if unique_track_count is not None and unique_track_count != matched:
+        dedup_line = f"\n  ➕ 实际添加  [bold]{unique_track_count}[/bold] 首（{matched - unique_track_count} 首去重）"
 
     stats = "\n".join([
         f"歌单共 [bold]{total}[/bold] 首{action_tag}",
         f"  ✅ 严格匹配  [green]{len(strict_matches)}[/green] 首",
         f"  🔶 模糊匹配  [yellow]{len(fuzzy_matches)}[/yellow] 首",
         f"  ❌ 未匹配    [red]{len(unmatched)}[/red] 首",
-    ])
+    ]) + dedup_line
     console.print(Panel(stats, title=f"[bold]{playlist_name}[/bold]", expand=False))
 
     table = Table(box=box.SIMPLE)
