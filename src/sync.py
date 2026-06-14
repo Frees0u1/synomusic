@@ -4,6 +4,11 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from src.config import Config
 from src.netease import NeteaseClient, NeteasePlaylist
 from src.navidrome import NavidromeClient, CreatePlaylistResult
+from src.downloader.batch import BatchDownloadContext, print_batch_download_summary, submit_best_downloads
+from src.downloader.models import TrackInfo
+from src.downloader.selection import TorrentSelector
+from src.downloader.settings import DownloaderSettings
+from src.downloader.synology import normalize_download_destination
 from src.matcher import Matcher, MatchStatus
 from src.report import SyncSummary, save_report, print_preview, print_collisions
 from src.history import History
@@ -50,6 +55,7 @@ def _run_sync_inner(
         strict_matches = []
         fuzzy_matches = []
         unmatched_list = []
+        unmatched_tracks: list[TrackInfo] = []
         matched_ids = []
 
         for track in netease_tracks:
@@ -62,6 +68,7 @@ def _run_sync_inner(
                 matched_ids.append(result.track_id)
             else:
                 unmatched_list.append((track.title, track.artist))
+                unmatched_tracks.append(TrackInfo.from_netease(track))
 
         progress.update(t3, description="✅ 匹配完成")
         progress.stop_task(t3)
@@ -94,13 +101,24 @@ def _run_sync_inner(
                   playlist_exists=playlist_exists, unique_track_count=len(matched_ids),
                   collisions=collisions)
 
+    if unmatched_tracks and _offer_missing_downloads(
+        unmatched_tracks,
+        console,
+        playlist_name=playlist.name,
+        playlist_total=total,
+        library_total=len(library),
+        strict_count=len(strict_matches),
+        fuzzy_count=len(fuzzy_matches),
+        unique_matched_count=len(matched_ids),
+    ):
+        return
+
     if not matched_ids:
         console.print("[yellow]曲库中没有匹配的歌曲，取消创建播放列表。[/yellow]")
         return
 
     action = "更新" if playlist_exists else "创建"
-    confirm = console.input(f"\n确认{action}播放列表「{playlist.name}」？[Y/n] ").strip().lower()
-    if confirm == "n":
+    if not _confirm(console, f"\n确认{action}播放列表「{playlist.name}」？", default=True):
         console.print("[yellow]已取消。[/yellow]")
         return
 
@@ -146,3 +164,78 @@ def _run_sync_inner(
         navidrome_playlist_id=result.playlist_id,
     )
     history.append(record)
+
+
+def _offer_missing_downloads(
+    unmatched_tracks: list[TrackInfo],
+    console: Console,
+    playlist_name: str,
+    playlist_total: int,
+    library_total: int,
+    strict_count: int,
+    fuzzy_count: int,
+    unique_matched_count: int,
+) -> bool:
+    """Return True when this sync run should stop before creating a playlist."""
+    console.print(f"\n[yellow]发现 {len(unmatched_tracks)} 首网易云歌曲在曲库中缺失。[/yellow]")
+    if not _confirm(console, "是否现在搜索种子并批量提交到 Synology Download Station？", default=True):
+        return False
+
+    try:
+        settings = DownloaderSettings.from_env()
+    except ValueError as exc:
+        console.print(f"[red]下载配置错误：{exc}[/red]")
+        console.print("[yellow]已选择处理缺失下载，本轮不会创建播放列表。[/yellow]")
+        return True
+
+    service = settings.build_service()
+    selector = TorrentSelector(
+        auto_threshold=settings.auto_threshold,
+        min_threshold=settings.min_threshold,
+    )
+    summary = submit_best_downloads(
+        unmatched_tracks,
+        service,
+        selector,
+        console=console,
+    )
+    print_batch_download_summary(
+        console,
+        summary,
+        BatchDownloadContext(
+            playlist_name=playlist_name,
+            playlist_total=playlist_total,
+            library_total=library_total,
+            strict_count=strict_count,
+            fuzzy_count=fuzzy_count,
+            unmatched_count=len(unmatched_tracks),
+            unique_matched_count=unique_matched_count,
+            destination=normalize_download_destination(settings.destination),
+        ),
+    )
+
+    if summary.submitted_count > 0:
+        console.print(
+            "\n[yellow]已添加下载任务。请等待 Synology 下载完成，并让 Navidrome 扫描新文件后，"
+            "重新导入这个网易云歌单。[/yellow]"
+        )
+        return True
+
+    console.print(
+        "\n[yellow]没有添加任何下载任务；由于已选择处理缺失下载，本轮不会创建播放列表。"
+        "如需只创建当前已匹配歌曲的播放列表，请重新运行并在下载提示处选择否。[/yellow]"
+    )
+    return True
+
+
+def _confirm(console: Console, prompt: str, default: bool = True) -> bool:
+    suffix = "[Y/n]" if default else "[y/N]"
+    while True:
+        raw = console.input(f"{prompt}{suffix} ").strip().lower()
+        if not raw:
+            return default
+        if raw in {"y", "yes"}:
+            return True
+        if raw in {"n", "no"}:
+            return False
+        console.print("[red]请输入 Y/N、yes/no，或直接回车。[/red]")
