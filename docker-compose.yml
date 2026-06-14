@@ -2,5 +2,5 @@ services:
   netease-api:
     image: binaryify/netease_cloud_music_api:latest
     ports:
-      - "3000:3000"
+      - "3300:3000"
     restart: unless-stopped

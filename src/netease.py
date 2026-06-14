@@ -37,9 +37,26 @@ class NeteaseClient:
     def _get(self, path: str, params: Optional[dict] = None) -> dict:
         resp = self._session.get(f"{self._base}{path}", params=params, timeout=15)
         resp.raise_for_status()
-        data = resp.json()
+        try:
+            data = resp.json()
+        except ValueError:
+            body = (resp.text or "").strip().replace("\n", " ")[:240]
+            content_type = resp.headers.get("content-type", "")
+            hint = ""
+            lowered = body.lower()
+            if "<html" in lowered or "open webui" in lowered:
+                hint = (
+                    "；当前 NETEASE_API_URL 似乎指向了一个网页应用，"
+                    "请确认它指向 NeteaseCloudMusicApi 服务端口"
+                )
+            raise RuntimeError(
+                f"Netease API returned non-JSON response: path={path} "
+                f"status={resp.status_code} content-type={content_type!r} body={body!r}{hint}"
+            )
         if data.get("code") not in (200, None):
-            raise RuntimeError(f"Netease API error {data.get('code')}: {path}")
+            message = data.get("msg") or data.get("message") or data.get("error") or ""
+            suffix = f": {message}" if message else ""
+            raise RuntimeError(f"Netease API error {data.get('code')}: {path}{suffix}")
         return data
 
     def get_top_playlists(self, limit: int = 20, before: Optional[int] = None) -> PlaylistPage:
@@ -100,6 +117,21 @@ class NeteaseClient:
                     duration_ms=s.get("dt", 0),
                 ))
         return tracks
+
+    def get_track_by_id(self, song_id: str) -> NeteaseTrack:
+        data = self._get("/song/detail", params={"ids": str(song_id)})
+        songs = data.get("songs", [])
+        if not songs:
+            raise RuntimeError(f"Song {song_id} not found")
+        s = songs[0]
+        ar = s.get("ar", [{}])
+        return NeteaseTrack(
+            id=str(s["id"]),
+            title=s.get("name", ""),
+            artist=ar[0].get("name", "") if ar else "",
+            album=s.get("al", {}).get("name", ""),
+            duration_ms=s.get("dt", 0),
+        )
 
     def get_playlist_by_id(self, playlist_id: str) -> NeteasePlaylist:
         data = self._get("/playlist/detail", params={"id": playlist_id})
