@@ -1,4 +1,6 @@
 from unittest.mock import patch
+import pytest
+
 from src.netease import NeteaseClient, PlaylistPage
 
 
@@ -16,6 +18,18 @@ def _make_api_response(n=2, more=True):
         for i in range(n)
     ]
     return {"code": 200, "playlists": playlists, "more": more}
+
+
+class BadJsonResponse:
+    status_code = 200
+    headers = {"content-type": "text/html"}
+    text = "<!doctype html><title>Open WebUI</title>"
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        raise ValueError("not json")
 
 
 def test_get_top_playlists_returns_playlist_page():
@@ -47,3 +61,14 @@ def test_get_top_playlists_empty_page():
     assert page.playlists == []
     assert page.has_more is False
     assert page.next_before is None
+
+
+def test_get_raises_actionable_error_for_html_response():
+    client = NeteaseClient("http://localhost:3000")
+    with patch.object(client._session, "get", return_value=BadJsonResponse()):
+        with pytest.raises(RuntimeError) as exc:
+            client._get("/top/playlist", params={"limit": 1})
+    message = str(exc.value)
+    assert "non-JSON response" in message
+    assert "Open WebUI" in message
+    assert "NETEASE_API_URL" in message

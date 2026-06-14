@@ -40,7 +40,8 @@ def print_menu() -> None:
         "  [bold cyan]3.[/bold cyan] 通过歌单 ID / URL 同步\n"
         "  [bold cyan]4.[/bold cyan] 查看历史同步记录\n"
         "  [bold cyan]5.[/bold cyan] 清除本地缓存\n"
-        "  [bold cyan]6.[/bold cyan] 退出",
+        "  [bold cyan]6.[/bold cyan] 通过歌曲 ID / URL 或歌名下载缺失单曲\n"
+        "  [bold cyan]7.[/bold cyan] 退出",
         title="[bold]SynoMusic[/bold]  Netease → Navidrome 同步",
         expand=False,
     ))
@@ -178,6 +179,36 @@ def menu_by_id(netease: NeteaseClient, navi: NavidromeClient, cfg: Config) -> No
     run_sync(playlist, netease, navi, cfg, console)
 
 
+def menu_download_song(netease: NeteaseClient) -> None:
+    raw = console.input("请输入歌曲 ID / URL，或直接输入歌名：").strip()
+    if not raw:
+        console.print("[dim]已取消。[/dim]")
+        return
+    match = re.search(r"(\d{6,})", raw)
+    if not match:
+        artist = console.input("歌手（建议填写）：").strip()
+        album = console.input("专辑（可空）：").strip()
+        from src.downloader.cli import run_manual_track_download_from_env
+        from src.downloader.models import TrackInfo
+
+        run_manual_track_download_from_env(
+            TrackInfo(title=raw, artist=artist, album=album),
+            console,
+        )
+        return
+    song_id = match.group(1)
+    with console.status("正在获取歌曲信息..."):
+        try:
+            track = netease.get_track_by_id(song_id)
+        except Exception as e:
+            console.print(f"[red]获取歌曲失败：{e}[/red]")
+            return
+    console.print(f"歌曲：[bold]{track.artist} - {track.title}[/bold]  [dim]{track.album}[/dim]")
+    from src.downloader.cli import run_track_download_from_env
+
+    run_track_download_from_env(track, console)
+
+
 def menu_clear_cache(cfg: Config) -> None:
     history_file = cfg.history_file
     reports = glob.glob("./data/reports/*.txt")
@@ -255,7 +286,7 @@ def main() -> None:
     while True:
         console.print()
         print_menu()
-        choice = console.input("\n请选择（1-6）：").strip()
+        choice = console.input("\n请选择（1-7）：").strip()
 
         if choice == "1":
             menu_top_playlists(netease, navi, cfg)
@@ -268,10 +299,12 @@ def main() -> None:
         elif choice == "5":
             menu_clear_cache(cfg)
         elif choice == "6":
+            menu_download_song(netease)
+        elif choice == "7":
             console.print("再见！")
             break
         else:
-            console.print("[red]无效选项，请输入 1-6。[/red]")
+            console.print("[red]无效选项，请输入 1-7。[/red]")
 
 
 if __name__ == "__main__":

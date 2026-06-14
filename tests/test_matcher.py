@@ -1,4 +1,6 @@
-from src.matcher import normalize, MatchResult, MatchStatus, Matcher
+import pytest
+
+from src.matcher import normalize, MatchStatus, Matcher
 
 
 def test_normalize_strips_whitespace():
@@ -66,12 +68,51 @@ def test_fuzzy_low_confidence_when_artist_also_fuzzy():
     assert result.low_confidence is True
 
 
-def test_high_title_score_matches_even_when_artist_very_different():
-    # Library has "(Live)" suffix which normalizes away, but artist name is completely different.
-    # Title score ends up 100 — should still match with low confidence rather than be dropped.
+def test_high_title_score_still_requires_artist_compatibility():
+    library = [{"id": "1", "title": "稻香", "artist": "另一个歌手"}]
+    matcher = Matcher(library, fuzzy_threshold=80)
+    result = matcher.match("稻香", "周杰伦")
+    assert result.status == MatchStatus.UNMATCHED
+
+
+def test_fuzzy_low_confidence_when_artist_is_simplified_or_traditional():
     library = [{"id": "1", "title": "旅行的意义(Live)", "artist": "陳綺貞"}]
     matcher = Matcher(library, fuzzy_threshold=80)
     result = matcher.match("旅行的意义", "陈绮贞")
     assert result.status == MatchStatus.FUZZY
     assert result.low_confidence is True
     assert result.track_id == "1"
+
+
+def test_artist_parenthesized_alias_matches_main_name():
+    library = [{"id": "1", "title": "稻香", "artist": "周杰伦 (Jay Chou)"}]
+    matcher = Matcher(library, fuzzy_threshold=80)
+    result = matcher.match("稻香", "周杰伦")
+    assert result.status == MatchStatus.FUZZY
+    assert result.low_confidence is True
+    assert result.track_id == "1"
+
+
+def test_artist_matches_primary_artist_with_featured_artist():
+    library = [{"id": "1", "title": "exile", "artist": "Taylor Swift feat. Bon Iver"}]
+    matcher = Matcher(library, fuzzy_threshold=80)
+    result = matcher.match("exile", "Taylor Swift")
+    assert result.status == MatchStatus.FUZZY
+    assert result.low_confidence is True
+    assert result.track_id == "1"
+
+
+@pytest.mark.parametrize(
+    ("title", "artist", "library_artist"),
+    [
+        ("秋风", "徐化文（四熹丸子）", "四熹丸子"),
+        ("秋风", "徐化文（四熹丸子）", "杨坤&四熹丸子"),
+        ("春歌", "好妹妹乐队", "雷婷"),
+        ("路漫漫", "木小雅", "梁汉文"),
+    ],
+)
+def test_same_title_different_artist_does_not_match(title, artist, library_artist):
+    library = [{"id": "1", "title": title, "artist": library_artist}]
+    matcher = Matcher(library, fuzzy_threshold=80)
+    result = matcher.match(title, artist)
+    assert result.status == MatchStatus.UNMATCHED
